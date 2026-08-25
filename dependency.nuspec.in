@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>Interfacing</id>
+    <version>1.0.0</version>
+    <authors>jinkaisheng</authors>
+    <owners>jinkaisheng</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Interface-based static and dynamic loading exercise.</description>
+    <dependencies>
+      <dependency id="HiggsIS" version="[1.9.2, 2.0.0)" />
+      <dependency id="spdlog-linux" version="[1.8.2]" />
+      <dependency id="libzmq-linux" version="[4.3.3]" />
+      <dependency id="libdeflate" version="[1.12.0]" />
+      <dependency id="gtest" version="[1.12.1, 2.0.0)" />
+    </dependencies>
+  </metadata>
+</package>
