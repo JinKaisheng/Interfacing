@@ -1,16 +1,20 @@
-#ifndef INTERFACE_H
-#define INTERFACE_H
+#ifndef INTERFACING_INTERFACE_H
+#define INTERFACING_INTERFACE_H
 
-class Interface {
+#include <higgsIS/ClassLoader.h>
+
+#include <string>
+
+#define INTERFACE_VERSION "1.0.0"
+
+class Interface : public HiggsIS::Loadable {
 public:
-    virtual ~Interface() = default;  // 虚析构函数
+    ~Interface() override = default;
+
     virtual void print() = 0;
     virtual void foo() = 0;
     virtual void bar() = 0;
+    virtual std::string GetVersion() = 0;
 };
 
-// 工厂函数类型定义
-typedef Interface* (*CreateInterfaceFunc)();
-typedef void (*DestroyInterfaceFunc)(Interface*);
-
-#endif // INTERFACE_H
+#endif
