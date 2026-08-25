@@ -9,3 +9,6 @@ set_target_properties(impl_a PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_BINARY_DIR}/lib"
     LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_BINARY_DIR}/lib")
 install(TARGETS impl_a LIBRARY DESTINATION lib)
+
+# 这段 CMake 把 impl_a.cpp 定义为一个独立插件目标，接入公共接口和 HiggsOps 依赖，
+# 并把动态库的构建位置及安装位置固定下来，使配置文件能够稳定找到它。

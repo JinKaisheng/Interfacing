@@ -51,7 +51,7 @@ add_subdirectory(autotest)
 
 # 在首次实现动态加载、尚未创建 tests/ 时暂设为 OFF。
 # 完成第 14 节后把默认值改为 ON。
-option(INTERFACING_BUILD_TESTS "Build Interfacing tests" OFF)
+option(INTERFACING_BUILD_TESTS "Build Interfacing tests" ON)
 if(INTERFACING_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
