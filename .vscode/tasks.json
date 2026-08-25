@@ -1,0 +1,48 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Interfacing: dependencies",
+            "type": "shell",
+            "command": "bash compile.sh deps",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "Interfacing: build",
+            "type": "shell",
+            "command": "bash compile.sh build",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "Interfacing: test",
+            "type": "shell",
+            "command": "bash compile.sh test",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "Interfacing: all",
+            "type": "shell",
+            "command": "bash compile.sh all",
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "Interfacing: run A",
+            "type": "shell",
+            "command": "build/server/bin/main.out build/server/config/impl_a.yaml",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "Interfacing: run B",
+            "type": "shell",
+            "command": "build/server/bin/main.out build/server/config/impl_b.yaml",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        }
+    ]
+}
