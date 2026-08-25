@@ -1,0 +1,3 @@
+[submodule "py"]
+	path = py
+	url = git@github.higgsasset.com:Shannon/shannon_py_cmake.git
