@@ -28,13 +28,15 @@ public:
         return INTERFACE_VERSION;
     }
 
+    // 普通成员函数需要先有对象才能调用，但现在的目标正是创建第一个对象。静态成员函数 不需要 this，可以直接作为工厂入口
     static HiggsIS::Loadable* NewInstance(const char* config_token);
 
 private:
     std::string message_;
 };
 
-// 若直接在类体内定义，函数天然是 inline；由于普通代码没有调用 点，优化器可能不把它导出到动态符号表，运行时 ClassLoader 就找不到它。
+// 若直接在类体内定义，函数天然是 inline；如果函数是 inline 的，并且在工程源码中没有显式调用点，
+// 编译器可能会优化掉这个函数，不生成独立的符号，运行时 ClassLoader 就找不到它。
 HiggsIS::Loadable* ImplA::NewInstance(const char* config_token) {
     const higgsops::config::Map config =
         higgsops::GetAssignedConfig(config_token);
@@ -43,3 +45,10 @@ HiggsIS::Loadable* ImplA::NewInstance(const char* config_token) {
 
 // YAML 中写的动态库版本 是否等于 .so 文件自己声明的动态库版本
 HCL_SO_VERSION(INTERFACE_VERSION)
+
+/*
+    宏概念上相当于导出：
+    extern "C" const char* HCL_DynamicLibVersion() {
+        return "1.0.0";
+    }
+*/

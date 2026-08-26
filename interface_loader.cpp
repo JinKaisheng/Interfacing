@@ -131,12 +131,19 @@ std::unique_ptr<Interface> LoadInterfaceFromConfig(
     bool validate_version)
 {
     // 读取并解析 YAML 配置文件。
+    // root["class"]["file"]  = "/.../libimpl_a.so"
+    // root["class"]["ver"]   = "1.0.0"
+    // root["class"]["class"] = "ImplA"
+    // root["message"]         = "configured-A"
     higgsops::config::Node root =
         higgsops::config::LoadConfigFile(config_file);
 
     // 根据配置中的动态库和类信息创建具体实现对象。
     // 返回值使用 unique_ptr 管理对象生命周期。
+    // root.AsMap()表示调用方确认根节点是键值映射，并希望按字符串键访问它。
     std::unique_ptr<Interface> instance =
+        // 模板参数是 Interface，因此整个调用要求最终对象可以转换为 Interface*。
+        // 上层 代码在编译时不认识 ImplA，选择具体类的工作交给 YAML 和 ClassLoader。
         higgsops::LoadClass<Interface>(root.AsMap());
 
     // 防止后续解引用空指针。
