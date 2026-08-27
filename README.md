@@ -224,17 +224,23 @@ bash compile.sh advanced-test
 ## 一键脚本
 
 ```bash
-bash compile.sh deps   # 只恢复依赖
-bash compile.sh debug          # 配置并构建 Debug
-bash compile.sh debug-test     # 测试 Debug
-bash compile.sh advanced       # 配置并构建 advanced Release
-bash compile.sh advanced-test  # 测试 advanced Release
+bash compile.sh deps           # 修复空缓存、恢复依赖并校验结果
+bash compile.sh check-deps     # 只检查关键头文件和库，不访问网络
+bash compile.sh debug          # 依赖预检后配置并构建 Debug
+bash compile.sh debug-test     # 依赖预检后测试 Debug
+bash compile.sh advanced       # 依赖预检后配置并构建 advanced Release
+bash compile.sh advanced-test  # 依赖预检后测试 advanced Release
 bash .agents/skills/interfacing-maintenance/scripts/verify.sh
 ```
 
 不传动作时默认执行 Debug 构建，因此 `bash compile.sh` 等价于
-`bash compile.sh debug`。依赖恢复是独立动作，不会在普通构建或完整验证中自动访问
-内部 NuGet 源。
+`bash compile.sh debug`。普通构建和完整验证只执行本地依赖预检，不会隐式访问内部
+NuGet；缺失时会列出文件并提示运行 `bash compile.sh deps`。
+
+显式执行 `deps` 时，脚本会删除确认不包含任何文件或链接的空包缓存，避免上游
+恢复脚本把“空目录存在”误判为“已经下载”。恢复结束后还会校验
+`ClassLoader.h`、`ConfigFactory.h`、`libHiggsIS.so` 和
+`libHiggsOps.so`，确保问题在进入 C++ 编译前暴露。
 
 默认并行任务数为 4，可通过环境变量覆盖：
 
@@ -244,8 +250,10 @@ BUILD_JOBS=8 bash compile.sh debug
 
 ## VS Code 构建与调试
 
-`.vscode/tasks.json` 提供 Debug、advanced Release、完整验证以及静态/动态运行
-任务。`.vscode/launch.json` 提供主程序和单个 gtest 的静态/动态调试配置；路径使用
+`.vscode/tasks.json` 提供依赖检查、Debug、advanced Release、完整验证以及
+静态/动态运行任务。新环境可运行 `Interfacing: bootstrap and verify all`，按顺序
+恢复依赖并执行完整验证；日常使用 `Interfacing: verify all`，只做本地预检而不联网。
+`.vscode/launch.json` 提供主程序和单个 gtest 的静态/动态调试配置；路径使用
 `${workspaceFolder}`，因此通过 Remote SSH 打开仓库时不依赖固定账号目录。
 
 代码、CMake、YAML、测试或运行方式改变后，仓库根目录 `AGENTS.md` 要求 Codex

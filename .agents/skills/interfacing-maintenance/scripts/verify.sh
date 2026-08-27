@@ -9,6 +9,7 @@ cd "${repo_root}"
 python -m json.tool .vscode/tasks.json >/dev/null
 python -m json.tool .vscode/launch.json >/dev/null
 
+bash compile.sh check-deps
 bash compile.sh debug
 bash compile.sh debug-test
 bash compile.sh advanced

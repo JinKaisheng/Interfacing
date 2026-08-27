@@ -9,6 +9,20 @@ set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/build/install"
 set(CMAKE_MODULE_PATH
     "${shannon_py_cmake_path}/cmake/modules" ${CMAKE_MODULE_PATH})
 
+set(INTERFACING_REQUIRED_DEPENDENCY_FILES
+    "${HIGGS_INSTALL_DIR}/include/higgsIS/ClassLoader.h"
+    "${HIGGS_INSTALL_DIR}/include/higgsops/ConfigFactory.h"
+    "${HIGGS_INSTALL_DIR}/lib/libHiggsIS.so"
+    "${HIGGS_INSTALL_DIR}/lib/libHiggsOps.so")
+foreach(required_dependency_file
+        IN LISTS INTERFACING_REQUIRED_DEPENDENCY_FILES)
+    if(NOT EXISTS "${required_dependency_file}")
+        message(FATAL_ERROR
+            "Interfacing dependency is missing: ${required_dependency_file}\n"
+            "Run: bash compile.sh deps")
+    endif()
+endforeach()
+
 include(higgs_common)
 include(ShannonCommon)
 shannon_init_compiler_system()

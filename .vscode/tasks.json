@@ -15,6 +15,19 @@
             "problemMatcher": []
         },
         {
+            "label": "Interfacing: check dependencies",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "compile.sh",
+                "check-deps"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "Interfacing: build debug",
             "type": "shell",
             "command": "bash",
@@ -91,6 +104,15 @@
             "problemMatcher": [
                 "$gcc"
             ]
+        },
+        {
+            "label": "Interfacing: bootstrap and verify all",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Interfacing: dependencies",
+                "Interfacing: verify all"
+            ],
+            "problemMatcher": []
         },
         {
             "label": "Interfacing: run static A",
