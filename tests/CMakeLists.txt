@@ -1,4 +1,10 @@
+# Independent fixture product version: HCL accepts the matching YAML, while the
+# loader rejects the old Interface contract after constructing LegacyImpl.
+set(INTERFACING_LEGACY_PLUGIN_VERSION "0.9.0")
+
 add_library(legacy_impl SHARED legacy_impl.cpp)
+target_compile_definitions(legacy_impl PRIVATE
+    INTERFACING_LEGACY_PLUGIN_VERSION="${INTERFACING_LEGACY_PLUGIN_VERSION}")
 target_include_directories(legacy_impl PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(legacy_impl PRIVATE ${INTERFACING_HIGGS_LIBRARIES})
 set_target_properties(legacy_impl PROPERTIES
@@ -11,7 +17,7 @@ set_target_properties(legacy_impl PROPERTIES
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/test-config")
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/test-config/legacy.yaml"
     CONTENT
-"load_mode: dynamic\nclass:\n  file: $<TARGET_FILE:legacy_impl>\n  ver: 0.9.0\n  class: LegacyImpl\nmessage: legacy\n")
+"load_mode: dynamic\nclass:\n  file: $<TARGET_FILE:legacy_impl>\n  ver: ${INTERFACING_LEGACY_PLUGIN_VERSION}\n  class: LegacyImpl\nmessage: legacy\n")
 
 file(GENERATE
     OUTPUT "${CMAKE_BINARY_DIR}/test-config/wrong-declared-version.yaml"

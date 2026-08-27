@@ -303,7 +303,7 @@ build/install/
 4. token 重载通过 `GetAssignedConfig(token)` 委托给 Map 重载；
 5. Map 重载集中完成字段读取和对象构造，供静态、动态路径复用；
 6. 为实现生成静态、动态两个 CMake target；
-7. 在动态库的一个 `.cpp` 中调用一次 `HCL_SO_VERSION("x.y.z")`；
+7. 在动态库的一个 `.cpp` 中调用一次 `HCL_SO_VERSION(插件版本宏)`；
 8. 在 `RegisterBuiltInInterfaces()` 中注册静态实现。
 
 `NewInstance` 应在类体外定义，避免无普通调用点的 inline 工厂函数被优化掉，
@@ -322,11 +322,51 @@ nm -D --defined-only build/debug/lib/libimpl_ad.so \
 ### 动态库文件版本
 
 ```cpp
-HCL_SO_VERSION("1.0.0")
+// impl_a/plugin_version.cpp
+HCL_SO_VERSION(INTERFACING_IMPL_A_PLUGIN_VERSION)
+// impl_b/plugin_version.cpp
+HCL_SO_VERSION(INTERFACING_IMPL_B_PLUGIN_VERSION)
 ```
 
 该宏导出固定符号 `HCL_DynamicLibVersion`。ClassLoader 将返回值与 YAML
 的 `class.ver` 做一致性校验，用于发现配置指向了错误版本的 `.so`。
+
+插件版本的唯一取值来源是根 `CMakeLists.txt` 中的同名 CMake 变量（A/B 默认均为
+`1.0.0`）。`target_compile_definitions(... PRIVATE ...)` 把变量作为字符串宏传给
+对应动态库的编译器；生成 YAML 时使用同一个变量，不再使用 `PROJECT_VERSION`。
+例如：
+
+```cmake
+target_compile_definitions(impl_a PRIVATE
+    INTERFACING_IMPL_A_PLUGIN_VERSION="${INTERFACING_IMPL_A_PLUGIN_VERSION}")
+```
+
+编译时等价于在该 target 的源文件前定义：
+
+```cpp
+#define INTERFACING_IMPL_A_PLUGIN_VERSION "1.0.0"
+```
+
+这些是 target 私有宏，不会把 ImplA 的插件版本传播给主程序或 ImplB。
+宏最终仍展开为字符串；本次改造消除的是分散的版本字面量，而不是改变 HCL 协议。
+A/B 变量为 CMake 缓存项，修改已配置构建树时需显式传入
+`-DINTERFACING_IMPL_A_PLUGIN_VERSION=新版本`（或 B 对应参数）后重新构建；仅修改
+`set(... CACHE ...)` 的默认值不会覆盖旧缓存。插件产品版本变化不会自动改变
+`Interface::GetVersion()`。
+
+| 版本职责 | 定义来源 | 使用位置 |
+|---|---|---|
+| 主程序及 A/B 的接口契约 | `interface.h` 的 `INTERFACE_VERSION` | `GetVersion()` 与加载器最低要求 |
+| ImplA 插件产品版本 | `INTERFACING_IMPL_A_PLUGIN_VERSION` | A 的 HCL 导出、A 的动态 YAML（含别名） |
+| ImplB 插件产品版本 | `INTERFACING_IMPL_B_PLUGIN_VERSION` | B 的 HCL 导出、B 的动态 YAML（含别名） |
+| Legacy 插件产品版本 | `tests/CMakeLists.txt` 的 `INTERFACING_LEGACY_PLUGIN_VERSION` | Legacy 的 HCL 导出与 YAML |
+| Legacy 接口契约 | `GetVersion()` 保留固定返回 `"0.9.0"` | 维持原有旧接口负例语义 |
+| 项目发布版本 | CMake `PROJECT_VERSION` | 项目发布标识，不再决定插件 YAML 版本 |
+
+Legacy 的 HCL 宏和原有接口返回值当前都为 `0.9.0`，保持“文件版本通过、接口版本
+拒绝”的测试语义。`GetVersion()` 和 Interface 契约逻辑不属于本次重构的修改范围。
+测试中的错误输入（如 `9.9.9`）与独立期望值仍保留字面量，避免测试跟着实现的
+同一个宏一起出错。版本宏只是命名，不提供额外的 ABI 安全保证。
 
 ### Interface 接口版本
 

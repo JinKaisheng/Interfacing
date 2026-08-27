@@ -10,6 +10,8 @@ set_target_properties(impl_b_static PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_BINARY_DIR}/lib")
 
 add_library(impl_b SHARED impl_b.cpp plugin_version.cpp)
+target_compile_definitions(impl_b PRIVATE
+    INTERFACING_IMPL_B_PLUGIN_VERSION="${INTERFACING_IMPL_B_PLUGIN_VERSION}")
 target_include_directories(impl_b PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(impl_b PRIVATE ${INTERFACING_HIGGS_LIBRARIES})
 set_target_properties(impl_b PROPERTIES

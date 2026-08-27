@@ -567,9 +567,12 @@ HCL_DynamicLibVersion
 
 ```cpp
 #ifdef INTERFACING_DYNAMIC_PLUGIN
-HCL_SO_VERSION(INTERFACE_VERSION)
+HCL_SO_VERSION(INTERFACING_PLUGIN_VERSION)
 #endif
 ```
+
+其中每个动态 target 应提供自己的 `INTERFACING_PLUGIN_VERSION`，并让对应 YAML
+使用同一 CMake 版本变量；不要把它与 `INTERFACE_VERSION` 绑定。
 
 只对动态目标定义宏。
 

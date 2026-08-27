@@ -199,7 +199,8 @@ classInfo["class"].AsString();
 - 增加 `INTERFACE_VERSION "1.0.0"`；
 - 增加虚函数 `GetVersion()`；
 - A/B 实现增加静态 `NewInstance()`；
-- A/B 动态库使用 `HCL_SO_VERSION(INTERFACE_VERSION)`；
+- A/B 动态库分别使用自己的插件产品版本宏，Interface 契约仍使用
+  `INTERFACE_VERSION`；
 - 实现使用 `higgsops::GetAssignedConfig(token)` 读取自身配置；
 - 新增统一加载函数 `LoadInterfaceWithModeFromConfig()`，返回对象、真实模式和类名；
 - `main.cpp` 只接收配置文件路径并调用统一加载函数；
@@ -679,8 +680,12 @@ HiggsIS::Loadable* ImplA::NewInstance(const char* token) {
     return new ImplA(config.GetOrDefault("message", "default-A"));
 }
 
-HCL_SO_VERSION(INTERFACE_VERSION)
+HCL_SO_VERSION(INTERFACING_IMPL_A_PLUGIN_VERSION)
 ```
+
+`INTERFACING_IMPL_A_PLUGIN_VERSION` 由 ImplA 动态 target 的
+`target_compile_definitions` 提供；根 CMake 用同一个版本变量生成 YAML。
+它不是 `INTERFACE_VERSION` 的别名。
 
 注意：`NewInstance` 必须返回 `HiggsIS::Loadable*`，而不是为了方便写成
 `ImplA*` 或 `Interface*`。这是 ClassLoader 头文件明确规定的工厂 ABI。
@@ -787,7 +792,7 @@ target_link_libraries(main.out PRIVATE interfacing_loader)
 
 ```cmake
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/config/impl_a.yaml" CONTENT
-"class:\n  file: $<TARGET_FILE:impl_a>\n  ver: 1.0.0\n  class: ImplA\nmessage: configured-A\n")
+"class:\n  file: $<TARGET_FILE:impl_a>\n  ver: ${INTERFACING_IMPL_A_PLUGIN_VERSION}\n  class: ImplA\nmessage: configured-A\n")
 ```
 
 完整可工作的 CMake 请直接对照当前仓库，而不是只复制以上节选。
@@ -857,8 +862,9 @@ ctest --test-dir build/server --output-on-failure
 2. 继承 `Interface`；
 3. 实现所有虚函数；
 4. 类外定义 `ImplC::NewInstance`；
-5. 添加 `HCL_SO_VERSION(INTERFACE_VERSION)`；
-6. CMake 中添加 `add_library(impl_c SHARED ...)`；
+5. 为 ImplC 定义独立的 `INTERFACING_IMPL_C_PLUGIN_VERSION`；
+6. 添加 `HCL_SO_VERSION(INTERFACING_IMPL_C_PLUGIN_VERSION)`，并在 CMake 中添加
+   `add_library(impl_c SHARED ...)`；
 7. 新建或生成 `impl_c.yaml`；
 8. 运行同一个 `main.out impl_c.yaml`。
 

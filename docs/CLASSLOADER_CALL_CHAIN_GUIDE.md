@@ -306,13 +306,14 @@ HCL_DynamicLibVersion
 它来自插件源码末尾：
 
 ```cpp
-HCL_SO_VERSION(INTERFACE_VERSION)
+HCL_SO_VERSION(INTERFACING_IMPL_A_PLUGIN_VERSION)
 ```
 
-当：
+该宏由 ImplA 动态 target 的 CMake 变量提供；同一个 CMake 变量也生成 YAML
+`class.ver`。它与 `INTERFACE_VERSION` 是两个独立定义。当插件 target 获得：
 
 ```cpp
-#define INTERFACE_VERSION "1.0.0"
+#define INTERFACING_IMPL_A_PLUGIN_VERSION "1.0.0"
 ```
 
 宏概念上相当于导出：

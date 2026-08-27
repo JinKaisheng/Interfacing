@@ -15,6 +15,8 @@ set_target_properties(impl_a_static PROPERTIES
 # plugin_version.cpp is deliberately excluded from impl_a_static so multiple
 # built-ins do not bring duplicate HCL_DynamicLibVersion symbols into main.out.
 add_library(impl_a SHARED impl_a.cpp plugin_version.cpp)
+target_compile_definitions(impl_a PRIVATE
+    INTERFACING_IMPL_A_PLUGIN_VERSION="${INTERFACING_IMPL_A_PLUGIN_VERSION}")
 target_include_directories(impl_a PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(impl_a PRIVATE ${INTERFACING_HIGGS_LIBRARIES})
 set_target_properties(impl_a PROPERTIES

@@ -810,7 +810,7 @@ HiggsIS::Loadable* ImplA::NewInstance(const char* config_token) {
     return new ImplA(config.GetOrDefault("message", "default-A"));
 }
 
-HCL_SO_VERSION(INTERFACE_VERSION)
+HCL_SO_VERSION(INTERFACING_IMPL_A_PLUGIN_VERSION)
 ```
 
 必须理解的三点：
@@ -858,8 +858,11 @@ HiggsIS::Loadable* ImplB::NewInstance(const char* config_token) {
     return new ImplB(config.GetOrDefault("message", "default-B"));
 }
 
-HCL_SO_VERSION(INTERFACE_VERSION)
+HCL_SO_VERSION(INTERFACING_IMPL_B_PLUGIN_VERSION)
 ```
+
+两个宏分别由对应动态 target 的 `target_compile_definitions` 提供，并分别与 A/B
+动态 YAML 使用同一个 CMake 版本变量；不要再用 `INTERFACE_VERSION` 充当 SO 版本。
 
 文件顶部需要与 A 相同的 include。
 
@@ -1081,11 +1084,11 @@ file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/config")
 file(GENERATE
     OUTPUT "${CMAKE_BINARY_DIR}/config/impl_a.yaml"
     CONTENT
-"class:\n  file: $<TARGET_FILE:impl_a>\n  ver: ${PROJECT_VERSION}\n  class: ImplA\nmessage: configured-A\n")
+"class:\n  file: $<TARGET_FILE:impl_a>\n  ver: ${INTERFACING_IMPL_A_PLUGIN_VERSION}\n  class: ImplA\nmessage: configured-A\n")
 file(GENERATE
     OUTPUT "${CMAKE_BINARY_DIR}/config/impl_b.yaml"
     CONTENT
-"class:\n  file: $<TARGET_FILE:impl_b>\n  ver: ${PROJECT_VERSION}\n  class: ImplB\nmessage: configured-B\n")
+"class:\n  file: $<TARGET_FILE:impl_b>\n  ver: ${INTERFACING_IMPL_B_PLUGIN_VERSION}\n  class: ImplB\nmessage: configured-B\n")
 
 install(TARGETS interfacing_loader
     ARCHIVE DESTINATION lib
@@ -1723,7 +1726,11 @@ GetVersion:
 ### 14.3 完整的 tests/CMakeLists.txt
 
 ```cmake
+set(INTERFACING_LEGACY_PLUGIN_VERSION "0.9.0")
+
 add_library(legacy_impl SHARED legacy_impl.cpp)
+target_compile_definitions(legacy_impl PRIVATE
+    INTERFACING_LEGACY_PLUGIN_VERSION="${INTERFACING_LEGACY_PLUGIN_VERSION}")
 target_include_directories(legacy_impl PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(legacy_impl PRIVATE ${INTERFACING_HIGGS_LIBRARIES})
 set_target_properties(legacy_impl PROPERTIES
@@ -1736,7 +1743,7 @@ set_target_properties(legacy_impl PROPERTIES
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/test-config")
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/test-config/legacy.yaml"
     CONTENT
-"class:\n  file: $<TARGET_FILE:legacy_impl>\n  ver: 0.9.0\n  class: LegacyImpl\nmessage: legacy\n")
+"class:\n  file: $<TARGET_FILE:legacy_impl>\n  ver: ${INTERFACING_LEGACY_PLUGIN_VERSION}\n  class: LegacyImpl\nmessage: legacy\n")
 
 file(GENERATE
     OUTPUT "${CMAKE_BINARY_DIR}/test-config/wrong-declared-version.yaml"
@@ -2066,8 +2073,9 @@ LoadInterfaceWithModeFromConfig(config, false)
 2. 继承 `Interface`；
 3. 实现全部虚函数和 `GetVersion()`；
 4. 类内声明、类外定义 `ImplC::NewInstance`；
-5. 添加 `HCL_SO_VERSION(INTERFACE_VERSION)`；
-6. CMake 添加 `impl_c` 动态库目标；
+5. 定义独立的 `INTERFACING_IMPL_C_PLUGIN_VERSION`；
+6. 添加 `HCL_SO_VERSION(INTERFACING_IMPL_C_PLUGIN_VERSION)`，并让 CMake 的
+   `impl_c` 动态库目标传入该宏；
 7. 生成 `impl_c.yaml`；
 8. 使用同一个 `main.out impl_c.yaml`。
 

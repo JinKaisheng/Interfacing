@@ -26,4 +26,5 @@ HiggsIS::Loadable* LegacyImpl::NewInstance(const char* config_token) {
     return new LegacyImpl();
 }
 
-HCL_SO_VERSION("0.9.0")
+// CMake also uses this product-version value when generating legacy.yaml.
+HCL_SO_VERSION(INTERFACING_LEGACY_PLUGIN_VERSION)

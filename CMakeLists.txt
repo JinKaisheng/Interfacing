@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.14)
 project(Interfacing VERSION 1.0.0 LANGUAGES CXX)
 
+# Plugin product versions are independent of the Interface contract version.
+# Each value feeds both the shared target's C++ macro and its generated YAML.
+set(INTERFACING_IMPL_A_PLUGIN_VERSION "1.0.0" CACHE STRING
+    "ImplA HCL plugin product version")
+set(INTERFACING_IMPL_B_PLUGIN_VERSION "1.0.0" CACHE STRING
+    "ImplB HCL plugin product version")
+
 set(shannon_py_cmake_path "${CMAKE_CURRENT_SOURCE_DIR}/py")
 set(HIGGS_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/install"
     CACHE PATH "Higgs dependency installation directory")
@@ -103,21 +110,21 @@ file(GENERATE
 file(GENERATE
     OUTPUT "${CMAKE_BINARY_DIR}/config/impl_a_dynamic.yaml"
     CONTENT
-"load_mode: dynamic\nclass:\n  file: $<TARGET_FILE:impl_a>\n  ver: ${PROJECT_VERSION}\n  class: ImplA\nmessage: configured-dynamic-A\n")
+"load_mode: dynamic\nclass:\n  file: $<TARGET_FILE:impl_a>\n  ver: ${INTERFACING_IMPL_A_PLUGIN_VERSION}\n  class: ImplA\nmessage: configured-dynamic-A\n")
 file(GENERATE
     OUTPUT "${CMAKE_BINARY_DIR}/config/impl_b_dynamic.yaml"
     CONTENT
-"load_mode: dynamic\nclass:\n  file: $<TARGET_FILE:impl_b>\n  ver: ${PROJECT_VERSION}\n  class: ImplB\nmessage: configured-dynamic-B\n")
+"load_mode: dynamic\nclass:\n  file: $<TARGET_FILE:impl_b>\n  ver: ${INTERFACING_IMPL_B_PLUGIN_VERSION}\n  class: ImplB\nmessage: configured-dynamic-B\n")
 
 # Preserve the previous names as explicit dynamic-loading aliases.
 file(GENERATE
     OUTPUT "${CMAKE_BINARY_DIR}/config/impl_a.yaml"
     CONTENT
-"load_mode: dynamic\nclass:\n  file: $<TARGET_FILE:impl_a>\n  ver: ${PROJECT_VERSION}\n  class: ImplA\nmessage: configured-dynamic-A\n")
+"load_mode: dynamic\nclass:\n  file: $<TARGET_FILE:impl_a>\n  ver: ${INTERFACING_IMPL_A_PLUGIN_VERSION}\n  class: ImplA\nmessage: configured-dynamic-A\n")
 file(GENERATE
     OUTPUT "${CMAKE_BINARY_DIR}/config/impl_b.yaml"
     CONTENT
-"load_mode: dynamic\nclass:\n  file: $<TARGET_FILE:impl_b>\n  ver: ${PROJECT_VERSION}\n  class: ImplB\nmessage: configured-dynamic-B\n")
+"load_mode: dynamic\nclass:\n  file: $<TARGET_FILE:impl_b>\n  ver: ${INTERFACING_IMPL_B_PLUGIN_VERSION}\n  class: ImplB\nmessage: configured-dynamic-B\n")
 
 install(TARGETS interfacing_loader
     ARCHIVE DESTINATION lib
