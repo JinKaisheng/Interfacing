@@ -10,14 +10,18 @@ int main(int argc, char** argv) {
     }
 
     try {
-        std::unique_ptr<Interface> instance =
-            LoadInterfaceFromConfig(argv[1]);
+        LoadedInterface loaded =
+            LoadInterfaceWithModeFromConfig(argv[1]);
 
+        // Mode is reported by the dispatcher, not guessed from implementation
+        // behavior. The same ImplA class can be created by either path.
+        std::cout << "Loaded " << loaded.class_name << " via "
+                  << ToString(loaded.mode) << " mode" << std::endl;
         std::cout << "Loaded interface version "
-                  << instance->GetVersion() << std::endl;
-        instance->print();
-        instance->foo();
-        instance->bar();
+                  << loaded.instance->GetVersion() << std::endl;
+        loaded.instance->print();
+        loaded.instance->foo();
+        loaded.instance->bar();
         return 0;
     } catch (const HiggsIS::Exception& error) {
         std::cerr << "Failed to load implementation: "

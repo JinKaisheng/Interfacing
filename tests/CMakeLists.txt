@@ -11,12 +11,12 @@ set_target_properties(legacy_impl PROPERTIES
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/test-config")
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/test-config/legacy.yaml"
     CONTENT
-"class:\n  file: $<TARGET_FILE:legacy_impl>\n  ver: 0.9.0\n  class: LegacyImpl\nmessage: legacy\n")
+"load_mode: dynamic\nclass:\n  file: $<TARGET_FILE:legacy_impl>\n  ver: 0.9.0\n  class: LegacyImpl\nmessage: legacy\n")
 
 file(GENERATE
     OUTPUT "${CMAKE_BINARY_DIR}/test-config/wrong-declared-version.yaml"
     CONTENT
-"class:\n  file: $<TARGET_FILE:impl_a>\n  ver: 9.9.9\n  class: ImplA\nmessage: wrong-version\n")
+"load_mode: dynamic\nclass:\n  file: $<TARGET_FILE:impl_a>\n  ver: 9.9.9\n  class: ImplA\nmessage: wrong-version\n")
 
 add_executable(interfacing_tests interface_tests.cpp)
 target_link_libraries(interfacing_tests PRIVATE
@@ -24,7 +24,8 @@ target_link_libraries(interfacing_tests PRIVATE
 target_compile_definitions(interfacing_tests PRIVATE
     INTERFACING_CONFIG_DIR="${CMAKE_BINARY_DIR}/config"
     INTERFACING_TEST_CONFIG_DIR="${CMAKE_BINARY_DIR}/test-config")
-add_dependencies(interfacing_tests impl_a impl_b legacy_impl)
+add_dependencies(interfacing_tests
+    impl_a impl_b impl_a_static impl_b_static legacy_impl)
 set_target_properties(interfacing_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin"

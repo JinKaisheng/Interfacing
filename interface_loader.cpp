@@ -1,5 +1,7 @@
 #include "interface_loader.h"
 
+#include "builtin_interfaces.h"
+
 #include <higgsops/ConfigFactory.h>
 
 #include <array>
@@ -33,6 +35,18 @@ namespace
 {
 
     using Version = std::array<unsigned int, 3>;
+
+    std::string RequiredString(const higgsops::config::Map &map,
+                               const std::string &key,
+                               const std::string &context)
+    {
+        if (!map.Contains(key))
+        {
+            throw std::invalid_argument(
+                context + " is missing required field: " + key);
+        }
+        return map[key].AsString();
+    }
 
     Version ParseVersion(const std::string &text)
     {
@@ -123,42 +137,153 @@ void ValidateInterfaceVersion(Interface &instance)
     }
 }
 
-// 从配置文件加载一个 Interface 实现。
-// config_file 指定 YAML 配置文件，
-// validate_version 决定加载后是否执行版本兼容性校验。
-std::unique_ptr<Interface> LoadInterfaceFromConfig(
-    const std::string &config_file,
-    bool validate_version)
+const char *ToString(LoadMode mode) noexcept
 {
-    // 读取并解析 YAML 配置文件。
-    // root["class"]["file"]  = "/.../libimpl_a.so"
-    // root["class"]["ver"]   = "1.0.0"
-    // root["class"]["class"] = "ImplA"
-    // root["message"]         = "configured-A"
-    higgsops::config::Node root =
+    switch (mode)
+    {
+    case LoadMode::Static:
+        return "static";
+    case LoadMode::Dynamic:
+        return "dynamic";
+    }
+    return "unknown";
+}
+
+HybridInterfaceLoader::HybridInterfaceLoader()
+{
+    // Concrete implementation knowledge is isolated in one composition root;
+    // main.cpp and the generic dispatch code still know only Interface.
+    RegisterBuiltInInterfaces(registry_);
+}
+
+LoadedInterface HybridInterfaceLoader::LoadFromConfig(
+    const std::string &config_file,
+    bool validate_version) const
+{
+    const higgsops::config::Node root =
         higgsops::config::LoadConfigFile(config_file);
+    return Load(root.AsMap(), validate_version);
+}
 
-    // 根据配置中的动态库和类信息创建具体实现对象。
-    // 返回值使用 unique_ptr 管理对象生命周期。
-    // root.AsMap()表示调用方确认根节点是键值映射，并希望按字符串键访问它。
-    std::unique_ptr<Interface> instance =
-        // 模板参数是 Interface，因此整个调用要求最终对象可以转换为 Interface*。
-        // 上层 代码在编译时不认识 ImplA，选择具体类的工作交给 YAML 和 ClassLoader。
-        higgsops::LoadClass<Interface>(root.AsMap());
+LoadedInterface HybridInterfaceLoader::Load(
+    const higgsops::config::Map &config,
+    bool validate_version) const
+{
+    if (!config.Contains("class"))
+    {
+        throw std::invalid_argument(
+            "Root configuration is missing required field: class");
+    }
 
-    // 防止后续解引用空指针。
+    const higgsops::config::Node class_node = config["class"];
+    const bool class_is_map = class_node.IsMap();
+    std::string class_name;
+    bool has_file = false;
+    bool has_version = false;
+
+    if (class_is_map)
+    {
+        const higgsops::config::Map class_info = class_node.AsMap();
+        class_name = RequiredString(
+            class_info, "class", "class configuration");
+        has_file = class_info.Contains("file");
+        has_version = class_info.Contains("ver");
+    }
+    else if (class_node.IsValue())
+    {
+        // Compatibility with the reference shannon_algo_db static format:
+        // class: ImplA
+        class_name = class_node.AsString();
+    }
+    else
+    {
+        throw std::invalid_argument(
+            "Root class must be a string or a map");
+    }
+
+    LoadMode mode;
+    const bool explicit_mode = config.Contains("load_mode");
+
+    if (explicit_mode)
+    {
+        const std::string mode_text = RequiredString(
+            config, "load_mode", "Root configuration");
+        if (mode_text == "static")
+        {
+            mode = LoadMode::Static;
+        }
+        else if (mode_text == "dynamic")
+        {
+            mode = LoadMode::Dynamic;
+        }
+        else
+        {
+            throw std::invalid_argument(
+                "load_mode must be either 'static' or 'dynamic': " +
+                mode_text);
+        }
+    }
+    else
+    {
+        // Backward compatibility and parity with shannon_algo_db: a class map
+        // containing both file and ver is dynamic; otherwise it is static.
+        // A half-specified dynamic map is rejected instead of silently falling
+        // back to static loading.
+        if (has_file != has_version)
+        {
+            throw std::invalid_argument(
+                "class.file and class.ver must either both be present or both be absent");
+        }
+        mode = (has_file && has_version)
+                   ? LoadMode::Dynamic
+                   : LoadMode::Static;
+    }
+
+    std::unique_ptr<Interface> instance;
+    if (mode == LoadMode::Static)
+    {
+        if (has_file || has_version)
+        {
+            throw std::invalid_argument(
+                "Static configuration must not contain class.file or class.ver");
+        }
+        instance = registry_.Create(class_name, config);
+    }
+    else
+    {
+        if (!class_is_map)
+        {
+            throw std::invalid_argument(
+                "Dynamic configuration requires a class map");
+        }
+        const higgsops::config::Map class_info = class_node.AsMap();
+        (void)RequiredString(
+            class_info, "file", "Dynamic class configuration");
+        (void)RequiredString(
+            class_info, "ver", "Dynamic class configuration");
+        instance = higgsops::LoadClass<Interface>(config);
+    }
+
     if (!instance)
     {
         throw std::runtime_error(
-            "LoadClass returned a null Interface instance");
+            "Loader returned null for class: " + class_name);
     }
-
-    // 根据调用方要求决定是否检查接口版本。
     if (validate_version)
     {
         ValidateInterfaceVersion(*instance);
     }
 
-    // 将实现对象的所有权转移给调用者。
-    return instance;
+    return LoadedInterface{
+        std::move(instance), mode, std::move(class_name)};
+}
+
+LoadedInterface LoadInterfaceWithModeFromConfig(
+    const std::string &config_file,
+    bool validate_version)
+{
+    // 静态注册的接口实现类在 HybridInterfaceLoader 构造函数中注册，
+    // 动态加载的接口实现类通过配置文件指定动态库路径和版本号
+    HybridInterfaceLoader loader;
+    return loader.LoadFromConfig(config_file, validate_version);
 }

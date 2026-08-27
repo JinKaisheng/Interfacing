@@ -1,8 +1,9 @@
-# Interfacing：基于 Higgs ClassLoader 的 C++ 动态接口加载示例
+# Interfacing：同时支持静态/动态加载的 C++ 接口示例
 
 本项目演示如何使用统一的 C++ 抽象接口、YAML 配置和
-`HiggsOps.Interface 2.36.0` 动态加载不同实现。业务代码不直接调用
-`dlopen`；新增或切换实现时只修改配置文件，不修改 `main.cpp`。
+`HiggsOps.Interface 2.36.0` 在同一个主程序中选择静态注册表或动态库加载。
+业务代码只调用 `LoadInterfaceWithModeFromConfig()` 和 `Interface`，不会直接
+依赖 `ImplA`、`ImplB`，也不直接调用 `dlopen`。
 
 项目同时实现两层版本保护：
 
@@ -11,35 +12,39 @@
 2. 项目加载器校验实现的 `GetVersion()` 是否兼容主程序要求的
    `INTERFACE_VERSION`。
 
+第一层只发生在动态路径；静态路径同样执行第二层接口版本校验。
+
 ## 已实现功能
 
 - 公共抽象接口 `Interface`，继承 `HiggsIS::Loadable`；
-- `ImplA`、`ImplB` 两个独立 `.so` 实现；
+- `ImplA`、`ImplB` 同时生成静态库和动态库；
+- `InterfaceRegistry` 注册并创建内置静态实现；
+- `HybridInterfaceLoader` 根据 YAML 选择静态或动态路径；
 - 使用 `higgsops::config::LoadConfigFile` 读取 YAML；
 - 使用 `higgsops::LoadClass<Interface>` 创建实现对象；
 - 使用 `NewInstance(const char*)` 和 `GetAssignedConfig()` 传递业务配置；
 - 使用 `HCL_SO_VERSION` 声明动态库版本；
 - 使用 `std::unique_ptr` 管理实现对象生命周期；
 - 使用语义化版本规则校验接口兼容性；
-- 使用 gtest 覆盖正常加载和版本异常场景；
+- `LoadedInterface.mode` 明确报告实际加载路径；
+- 使用 gtest 覆盖静态、动态、版本和配置异常场景；
 - 使用 Shannon 公共 CMake/NuGet 工具恢复完整依赖。
 
 ## 工作机制
 
 ```text
 main.out
-  -> LoadInterfaceFromConfig(config.yaml)
+  -> LoadInterfaceWithModeFromConfig(config.yaml)
   -> LoadConfigFile：YAML 转换成 config::Node
   -> Node::AsMap：取得根配置 Map
-  -> LoadClass<Interface>
-       -> 读取 class.file、class.ver、class.class
-       -> 打开指定 .so
-       -> 校验 HCL_DynamicLibVersion
-       -> 查找 NewInstance(const char*)
-       -> 将完整配置暂存并把 token 传给实现
-  -> 实现通过 GetAssignedConfig(token) 取回配置
-  -> 返回 std::unique_ptr<Interface>
+  -> HybridInterfaceLoader::Load
+       -> static：InterfaceRegistry::Create(class_name, config)
+       -> dynamic：higgsops::LoadClass<Interface>(config)
+            -> 打开指定 .so 并校验 HCL_DynamicLibVersion
+            -> 调用 NewInstance(const char*)
+            -> 插件通过 GetAssignedConfig(token) 取回配置
   -> 校验 GetVersion() 与 INTERFACE_VERSION
+  -> 返回 LoadedInterface{instance, mode, class_name}
   -> main 只通过 Interface 调用 print/foo/bar
 ```
 
@@ -51,11 +56,15 @@ Interfacing/
 ├── compile.sh                    依赖、构建和测试入口
 ├── dependency.nuspec.in          NuGet 依赖声明
 ├── interface.h                   公共接口与 INTERFACE_VERSION
-├── interface_loader.h/.cpp       配置加载和接口版本校验
-├── impl_a/                       ImplA 动态库
-├── impl_b/                       ImplB 动态库
+├── interface_loader.h/.cpp       静态/动态分派和接口版本校验
+├── interface_registry.h/.cpp     静态实现工厂注册表
+├── builtin_interfaces.h/.cpp     内置实现注册入口
+├── impl_a/                       ImplA 静态库和动态库
+├── impl_b/                       ImplB 静态库和动态库
 ├── autotest/                     示例主程序 main.out
 ├── tests/                        gtest 与不兼容测试插件
+├── .vscode/                      服务器构建和调试任务
+├── .agents/skills/               项目收尾维护 Skill
 └── py/                           shannon_py_cmake 子模块
 ```
 
@@ -120,22 +129,22 @@ test -f install/lib/libHiggsOps.so
 
 ## 配置和构建
 
-构建包含测试的版本：
+调试使用带符号的 Debug 构建：
 
 ```bash
-cmake -S . -B build/server -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
+cmake -S . -B build/debug -G Ninja \
+  -DCMAKE_BUILD_TYPE=Debug \
   -DINTERFACING_BUILD_TESTS=ON
-cmake --build build/server -j 4
+cmake --build build/debug -j 4
 ```
 
-不需要测试时：
+完整验收同时维护 advanced Release 构建：
 
 ```bash
-cmake -S . -B build/server -G Ninja \
+cmake -S . -B build/advanced -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
-  -DINTERFACING_BUILD_TESTS=OFF
-cmake --build build/server -j 4
+  -DINTERFACING_BUILD_TESTS=ON
+cmake --build build/advanced -j 4
 ```
 
 如果 Ninja 输出 `ninja: no work to do.`，表示构建产物已经是最新状态，
@@ -144,34 +153,49 @@ cmake --build build/server -j 4
 主要构建产物：
 
 ```text
-build/server/bin/main.out
-build/server/lib/libimpl_a.so
-build/server/lib/libimpl_b.so
-build/server/config/impl_a.yaml
-build/server/config/impl_b.yaml
+build/debug/bin/main.out
+build/debug/bin/interfacing_tests
+build/debug/lib/libimpl_ad.so
+build/debug/lib/libimpl_bd.so
+build/debug/config/impl_a_static.yaml
+build/debug/config/impl_a_dynamic.yaml
 ```
+
+当前 Shannon 工具链给 Debug 库名添加 `d` 后缀；advanced Release 中对应的是
+`libimpl_a.so`、`libimpl_b.so`。YAML 由 CMake 根据真实 target 路径生成，不要手改库名。
 
 ## 运行
 
-只改变 YAML 参数即可切换实现：
+同一个 `main.out` 只通过 YAML 切换静态或动态加载：
 
 ```bash
-build/server/bin/main.out build/server/config/impl_a.yaml
-build/server/bin/main.out build/server/config/impl_b.yaml
+build/debug/bin/main.out build/debug/config/impl_a_static.yaml
+build/debug/bin/main.out build/debug/config/impl_a_dynamic.yaml
 ```
 
-生成的配置结构如下：
+静态配置只提供注册类名和业务字段：
 
 ```yaml
+load_mode: static
 class:
-  file: /absolute/path/to/build/server/lib/libimpl_a.so
+  class: ImplA
+message: configured-static-A
+```
+
+动态配置还必须提供 `.so` 和插件版本：
+
+```yaml
+load_mode: dynamic
+class:
+  file: /absolute/path/to/build/debug/lib/libimpl_ad.so
   ver: 1.0.0
   class: ImplA
-message: configured-A
+message: configured-dynamic-A
 ```
 
 | 字段 | 含义 |
 |---|---|
+| `load_mode` | 明确选择 `static` 或 `dynamic` |
 | `class.file` | 待加载的 `.so` 路径 |
 | `class.ver` | 配置期望的动态库版本 |
 | `class.class` | 动态库中实现类的完整 C++ 类名 |
@@ -183,48 +207,62 @@ message: configured-A
 ## 运行测试
 
 ```bash
-cmake -S . -B build/server -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DINTERFACING_BUILD_TESTS=ON
-cmake --build build/server -j 4
-ctest --test-dir build/server --output-on-failure
+bash compile.sh debug
+bash compile.sh debug-test
+bash compile.sh advanced
+bash compile.sh advanced-test
 ```
 
-当前包含 6 个测试场景：
+测试覆盖以下类别：
 
 1. 语义化版本兼容规则；
-2. 从配置加载 ImplA；
-3. 只改变配置加载 ImplB；
-4. 拒绝接口版本为 `0.9.0` 的旧实现；
-5. 证明关闭接口校验会让不兼容实现漏过；
-6. 拒绝 YAML 声明版本与 `.so` 声明版本不一致。
+2. ImplA、ImplB 静态加载并断言 `LoadMode::Static`；
+3. ImplA、ImplB 动态加载并断言 `LoadMode::Dynamic`；
+4. 接口版本和动态库声明版本异常；
+5. 未注册静态类、缺失动态字段和未知模式等配置异常。
 
 ## 一键脚本
 
 ```bash
 bash compile.sh deps   # 只恢复依赖
-bash compile.sh build  # 只配置并构建
-bash compile.sh test   # 只运行测试
-bash compile.sh all    # 依赖、构建、测试全部执行
+bash compile.sh debug          # 配置并构建 Debug
+bash compile.sh debug-test     # 测试 Debug
+bash compile.sh advanced       # 配置并构建 advanced Release
+bash compile.sh advanced-test  # 测试 advanced Release
+bash .agents/skills/interfacing-maintenance/scripts/verify.sh
 ```
+
+不传动作时默认执行 Debug 构建，因此 `bash compile.sh` 等价于
+`bash compile.sh debug`。依赖恢复是独立动作，不会在普通构建或完整验证中自动访问
+内部 NuGet 源。
 
 默认并行任务数为 4，可通过环境变量覆盖：
 
 ```bash
-BUILD_JOBS=8 bash compile.sh build
+BUILD_JOBS=8 bash compile.sh debug
 ```
+
+## VS Code 构建与调试
+
+`.vscode/tasks.json` 提供 Debug、advanced Release、完整验证以及静态/动态运行
+任务。`.vscode/launch.json` 提供主程序和单个 gtest 的静态/动态调试配置；路径使用
+`${workspaceFolder}`，因此通过 Remote SSH 打开仓库时不依赖固定账号目录。
+
+代码、CMake、YAML、测试或运行方式改变后，仓库根目录 `AGENTS.md` 要求 Codex
+调用项目 Skill `interfacing-maintenance`，检查构建任务、调试任务和本文档，并运行
+完整验证。检查并不意味着每次都改文件：只有内容过期时才更新。
 
 ## Build 与 Install
 
 ```bash
-cmake --build build/server -j 4
+cmake --build build/advanced -j 4
 ```
 
 负责把源码编译、链接为 `main.out` 和 `.so`，产物保存在
-`build/server/` 构建树中。
+`build/advanced/` 构建树中。
 
 ```bash
-cmake --install build/server
+cmake --install build/advanced
 ```
 
 负责按照 `install(...)` 规则整理已经构建好的文件。当前项目安装到：
@@ -234,13 +272,17 @@ build/install/
 ├── bin/main.out
 ├── lib/libinterfacing_loader.a
 ├── lib/libimpl_a.so
+├── lib/libimpl_a_static.a
 ├── lib/libimpl_b.so
+├── lib/libimpl_b_static.a
 └── include/interfacing/
     ├── interface.h
-    └── interface_loader.h
+    ├── interface_loader.h
+    ├── interface_registry.h
+    └── builtin_interfaces.h
 ```
 
-生成的 YAML 仍位于 `build/server/config/`，当前安装规则不会复制它们。开发和
+生成的 YAML 仍位于对应构建目录的 `config/`，当前安装规则不会复制它们。开发和
 验收阶段建议直接运行构建树中的程序与配置。
 
 ## 插件实现协议
@@ -249,10 +291,12 @@ build/install/
 
 1. 继承 `Interface`；
 2. 实现 `print()`、`foo()`、`bar()` 和 `GetVersion()`；
-3. 声明并在 `.cpp` 类体外定义
-   `static HiggsIS::Loadable* NewInstance(const char*)`；
-4. 在 `NewInstance()` 中通过 `higgsops::GetAssignedConfig(token)` 取得配置；
-5. 在动态库的一个 `.cpp` 中调用一次 `HCL_SO_VERSION("x.y.z")`。
+3. 同时提供 `NewInstance(const char*)` 和 `NewInstance(const Map&)`；
+4. token 重载通过 `GetAssignedConfig(token)` 委托给 Map 重载；
+5. Map 重载集中完成字段读取和对象构造，供静态、动态路径复用；
+6. 为实现生成静态、动态两个 CMake target；
+7. 在动态库的一个 `.cpp` 中调用一次 `HCL_SO_VERSION("x.y.z")`；
+8. 在 `RegisterBuiltInInterfaces()` 中注册静态实现。
 
 `NewInstance` 应在类体外定义，避免无普通调用点的 inline 工厂函数被优化掉，
 导致 ClassLoader 在 `.so` 动态符号表中找不到入口。
@@ -260,7 +304,7 @@ build/install/
 检查导出符号：
 
 ```bash
-nm -D --defined-only build/server/lib/libimpl_a.so \
+nm -D --defined-only build/debug/lib/libimpl_ad.so \
   | c++filt \
   | grep -E 'NewInstance|HCL_DynamicLibVersion'
 ```
@@ -309,11 +353,12 @@ implementation >= required
 
 新增 `ImplC` 时：
 
-1. 新建 `impl_c/impl_c.cpp` 和 `impl_c/CMakeLists.txt`；
-2. 实现 `Interface` 和 ClassLoader 工厂协议；
+1. 新建 `impl_c/impl_c.h`、`impl_c/impl_c.cpp`、版本源文件和 CMake 配置；
+2. 实现 `Interface`、token 工厂和 Map 工厂；
 3. 在根 `CMakeLists.txt` 中加入 `add_subdirectory(impl_c)`；
-4. 增加对应 YAML 配置；
-5. 增加动态加载和版本测试。
+4. 在 `RegisterBuiltInInterfaces()` 中注册静态工厂；
+5. 同时生成静态、动态 YAML 配置；
+6. 增加静态、动态加载和版本测试。
 
 `main.cpp` 不应为具体实现增加 `if/else` 分支。实现选择必须由 YAML 完成，
 这是插件化设计的核心。
@@ -340,8 +385,8 @@ ls -l interface_loader.h
 ### 运行时找不到 `.so`
 
 ```bash
-ldd build/server/bin/main.out
-ldd build/server/lib/libimpl_a.so
+ldd build/debug/bin/main.out
+ldd build/debug/lib/libimpl_ad.so
 ```
 
 项目已将 `install/lib` 加入构建 RPATH，不建议先用全局 `LD_LIBRARY_PATH`
@@ -362,10 +407,16 @@ YAML class.ver == 动态库 HCL_SO_VERSION
 - [ ] `py` 子模块已初始化；
 - [ ] `install/include/higgsops/ConfigFactory.h` 存在；
 - [ ] `install/lib/libHiggsOps.so` 存在；
-- [ ] Release 构建成功；
-- [ ] `libimpl_a.so`、`libimpl_b.so` 位于 `build/server/lib`；
-- [ ] A/B 均可通过各自 YAML 加载；
+- [ ] Debug 和 advanced Release 构建成功；
+- [ ] Debug 和 advanced Release 的全部 CTest 测试通过；
+- [ ] A/B 均覆盖静态和动态加载；
+- [ ] 主程序分别输出 `via static mode` 和 `via dynamic mode`；
 - [ ] `main.cpp` 不包含具体实现分支；
-- [ ] 6 个测试全部通过；
 - [ ] `.so` 导出 `NewInstance` 和 `HCL_DynamicLibVersion`；
 - [ ] 版本不匹配时能够给出明确错误。
+
+## 延伸文档
+
+- [从零到一实现记录](FROM_ZERO_TO_ONE.md)
+- [从 GitHub 基础版到进阶版的逐步手册](GUIDE_GITHUB_BASIC_TO_ADVANCED.md)
+- [开发命令与排障速查](docs/DEVELOPMENT_COMMAND_REFERENCE.md)

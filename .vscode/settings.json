@@ -1,0 +1,16 @@
+{
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    "cmake.buildDirectory": "${workspaceFolder}/build/debug",
+    "cmake.generator": "Ninja",
+    "cmake.configureSettings": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "INTERFACING_BUILD_TESTS": "ON",
+        "HIGGS_INSTALL_DIR": "${workspaceFolder}/install"
+    },
+    "workbench.editorAssociations": {
+        "*.md": "default"
+    },
+    "workbench.diffEditorAssociations": {
+        "*.md": "default"
+    }
+}

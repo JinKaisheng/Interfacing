@@ -2,39 +2,46 @@
 
 set -euo pipefail
 
-action="${1:-all}"
-build_dir="build/server"
+action="${1:-debug}"
 
 install_dependencies() {
     python py/configuration.py dependency.nuspec.in install/
 }
 
-build_project() {
-    cmake -S . -B "${build_dir}" -G Ninja
-    cmake --build "${build_dir}" -j "${BUILD_JOBS:-4}"
+build_named_configuration() {
+    local name="$1"
+    local build_type="$2"
+    local named_build_dir="build/${name}"
+
+    cmake -S . -B "${named_build_dir}" -G Ninja \
+        -DCMAKE_BUILD_TYPE="${build_type}" \
+        -DINTERFACING_BUILD_TESTS=ON
+    cmake --build "${named_build_dir}" -j "${BUILD_JOBS:-4}"
 }
 
-test_project() {
-    ctest --test-dir "${build_dir}" --output-on-failure
+test_named_configuration() {
+    local name="$1"
+    ctest --test-dir "build/${name}" --output-on-failure
 }
 
 case "${action}" in
     deps)
         install_dependencies
         ;;
-    build)
-        build_project
+    debug)
+        build_named_configuration debug Debug
         ;;
-    test)
-        test_project
+    debug-test)
+        test_named_configuration debug
         ;;
-    all)
-        install_dependencies
-        build_project
-        test_project
+    advanced)
+        build_named_configuration advanced Release
+        ;;
+    advanced-test)
+        test_named_configuration advanced
         ;;
     *)
-        echo "Usage: bash compile.sh {deps|build|test|all}" >&2
+        echo "Usage: bash compile.sh {deps|debug|debug-test|advanced|advanced-test}" >&2
         exit 2
         ;;
 esac
